@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2D to 3D | Convert 2D Images into 3D Models</title>
+
+  <link rel="stylesheet" href="/static/2dto3d.css">
+  <script src="https://kit.fontawesome.com/2719e9c5ba.js" crossorigin="anonymous"></script>
+
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/"
+    }
+  }
+  </script>
+
+  <style>
+    #model-viewer-container {
+      width: 80%;
+      max-width: 900px;
+      height: 600px;
+      margin: 20px auto;
+      background-color: #e8ebef;
+      border: 1px solid #ccc;
+      display: none;
+      border-radius: 10px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    .status-message {
+      text-align: center;
+      margin-top: 15px;
+      font-size: 1.1em;
+      font-weight: bold;
+    }
+    #status-error { color: red; }
+    #status-success { color: green; }
+    #status-loading { color: #333; }
+  </style>
+
+<meta name="google-site-verification" content="OL56efPSbkZXhLVauhCN27p7eHeG01SDYzWQjasGohU" />
+
+
+</head>
+
+<body style="background-color:rgb(245, 247, 248);">
+  <nav class="navbar">
+    <div class="logo">
+      <img src="/static/logo.jpg" alt="Logo" height="40">
+      <span class="logo-text">BlueVision</span>
+    </div>
+
+    <div class="menu">
+      <a href="/static/2dto3d.html">Home</a>
+      <a href="/static/feature.html">Features</a>
+      <a href="/static/about.html">About</a>
+      <a href="/static/contact.html">Contact</a>
+    </div>
+
+    <div class="buttons">
+      <button class="btn signin">Sign In</button>
+      <button class="btn signup">Sign Up</button>
+    </div>
+  </nav>
+
+  
+
+  <div class="content">
+    <h1 style="text-align: center;">Convert 2D Blueprints into 3D Models</h1>
+    <h2 style="text-align: center;">Get your desirable design</h2>
+  </div>
+
+  <div class="main-gallary">
+    <div class="card">
+      <img src="/static/img1.jpg" alt="Blueprint example">
+    </div>
+    <div class="card">
+      <img src="/static/img2.jpg" alt="3D model example">
+    </div>
+  </div>
+
+  <!-- Upload form -->
+  <form class="upload-container" id="upload-form">
+    <label for="fileUpload" class="upload-btn">Upload Blueprint</label>
+    <input id="fileUpload" name="blueprint_file" type="file" accept="image/png, image/jpeg" required style="display:none;">
+
+    <p id="fileNameDisplay" style="text-align:center; margin: 10px 0 0 0; color: #555;">No file selected</p>
+
+    <div style="text-align:center;margin-top:20px;">
+      </div>
+    
+    <button type="submit" ...>Convert to 3D</button>
+    <p id="statusMessage" class="status-message"></p>
+</form>
+
+  <div id="model-viewer-container"></div>
+
+  
+
+  <!-- Popups -->
+  <div class="popup" id="signinPopup">
+    <div class="popup-content">
+      <span class="close-btn" onclick="closePopup('signinPopup')">&times;</span>
+      <h2>Sign In</h2>
+      <input type="email" placeholder="Email" required>
+      <input type="password" placeholder="Password" required>
+      <button class="google-btn">
+        <img src="https://www.svgrepo.com/show/355037/google.svg" alt="Google Logo" style="width:18px;margin-right:8px;">Continue with Google
+      </button>
+      <button>Sign In</button>
+    </div>
+  </div>
+
+  <div class="popup" id="signupPopup">
+    <div class="popup-content">
+      <span class="close-btn" onclick="closePopup('signupPopup')">&times;</span>
+      <h2>Sign Up</h2>
+      <input type="text" placeholder="Full Name" required>
+      <input type="email" placeholder="Email" required>
+      <input type="password" placeholder="Password" required>
+      <button>Sign Up</button>
+    </div>
+  </div>
+
+  <footer>
+    <p>Help</p>
+    <div class="Icons">SolidView 2025
+      <a href=""><i class="fa-brands fa-instagram"></i></a>
+    </div>
+  </footer>
+
+  <!-- ========================================================= -->
+  <!-- ENHANCED 3D VIEWER SCRIPT -->
+  <!-- ========================================================= -->
+<script type="module">
+    // Import all the necessary parts from three.js
+    import * as THREE from 'three';
+    import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // Global variables for the 3D scene
+    let scene, camera, renderer, controls, animationLoopId;
+
+    // Wait for the page to be fully loaded
+    document.addEventListener('DOMContentLoaded', () => {
+        // Get all the HTML elements we need to interact with
+        const form = document.getElementById('upload-form');
+        const fileInput = document.getElementById('fileUpload');
+        const statusMessage = document.getElementById('statusMessage');
+        const viewerContainer = document.getElementById('model-viewer-container');
+        const fileNameDisplay = document.getElementById('fileNameDisplay'); // It will be found now
+        
+        // --- POPUP HANDLER FIX ---
+        const signinButton = document.querySelector('.btn.signin');
+        const signupButton = document.querySelector('.btn.signup');
+        const closeButtons = document.querySelectorAll('.close-btn');
+
+        // Function to open popup
+        const openPopup = (id) => {
+            const popup = document.getElementById(id);
+            if (popup) popup.style.display = 'flex';
+        };
+
+        // Function to close popup
+        const closePopup = (id) => {
+            const popup = document.getElementById(id);
+            if (popup) popup.style.display = 'none';
+        };
+
+        // Attach listeners for opening popups
+       if (signinButton) signinButton.addEventListener('click', () => openPopup('signinPopup'));
+        if (signupButton) signupButton.addEventListener('click', () => openPopup('signupPopup'));
+        
+        // Attach listeners for closing popups
+        closeButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                const popup = e.target.closest('.popup');
+                if (popup) closePopup(popup.id);
+            });
+        });
+        // --- END POPUP HANDLER FIX ---
+
+        // Update file name display when file is selected
+        if (fileInput && fileNameDisplay) { 
+            fileInput.addEventListener('change', () => {
+                if (fileInput.files.length > 0) {
+                    fileNameDisplay.textContent = `Selected file: ${fileInput.files[0].name}`;
+                } else {
+                    fileNameDisplay.textContent = "No file selected";
+                }
+            });
+        }
+        
+        // --- Form Submission Logic ---
+        if (form && statusMessage) {
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault(); // Stop the page from reloading
+                
+                const file = fileInput?.files?.[0]; 
+
+                if (!file) {
+                    statusMessage.textContent = "❌ Please select a file!";
+                    statusMessage.className = "status-message";
+                    statusMessage.id = "status-error";
+                    return;
+                }
+
+                statusMessage.textContent = "⏳ Uploading and converting...";
+                statusMessage.className = "status-message";
+                statusMessage.id = "status-loading";
+
+                if (animationLoopId) cancelAnimationFrame(animationLoopId);
+                if (viewerContainer) viewerContainer.style.display = 'none';
+                if (viewerContainer) viewerContainer.innerHTML = '';
+
+                const formData = new FormData(form);
+
+                try {
+                    const response = await fetch('/convert', { method: 'POST', body: formData });
+                    const result = await response.json();
+
+                    if (response.ok) {
+                        statusMessage.textContent = "✅ Conversion successful! Use your mouse to rotate and zoom.";
+                        statusMessage.className = "status-message";
+                        statusMessage.id = "status-success";
+                        
+                        init3DViewer(result.model_url);
+
+                    } else {
+                        statusMessage.textContent = `❌ Error: ${result.error_message || 'Unknown error.'}`;
+                        statusMessage.className = "status-message";
+                        statusMessage.id = "status-error";
+                    }
+                } catch (error) {
+                    statusMessage.textContent = "⚠️ Network error. Could not connect to server.";
+                    statusMessage.className = "status-message";
+                    statusMessage.id = "status-error";
+                }
+            });
+        }
+
+        // --- ADD THIS NEW SIGNUP LOGIC ---
+        const signupPopup = document.getElementById('signupPopup');
+        if (signupPopup) {
+            // Find the elements inside the signup popup
+            // NOTE: We find the button by its text, as it's the only one
+            const signupFormButton = signupPopup.querySelector('button'); 
+            const fullNameField = signupPopup.querySelector('input[placeholder="Full Name"]');
+            const emailField = signupPopup.querySelector('input[placeholder="Email"]');
+            const passwordField = signupPopup.querySelector('input[placeholder="Password"]');
+
+            if (signupFormButton && emailField && passwordField) {
+                signupFormButton.addEventListener('click', async () => {
+                    const email = emailField.value;
+                    const password = passwordField.value;
+
+                    // Basic validation
+                    if (!email || !password) {
+                        alert("Please enter both an email and a password.");
+                        return;
+                    }
+
+                    console.log(`Attempting to register: ${email}`);
+
+                    try {
+                        // Send the data to the backend /register route
+                        const response = await fetch('/register', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                email: email,
+                                password: password
+                            })
+                        });
+
+                        const result = await response.json();
+
+                        if (response.ok) {
+                            alert("Sign up successful! You can now sign in.");
+                            closePopup('signupPopup'); // Close the popup on success
+                        } else {
+                            // Show error message from the server
+                            alert(`Sign up failed: ${result.detail || 'Unknown error'}`);
+                        }
+                    } catch (error) {
+                        console.error("Signup fetch error:", error);
+                        alert("Could not connect to the server. Please try again.");
+                    }
+                });
+            }
+        }
+        // --- END NEW SIGNUP LOGIC ---
+
+    }); // <-- This is the end of the 'DOMContentLoaded' listener
+
+    /**
+     * Initializes the 3D viewer and loads the .obj model
+     */
+    function init3DViewer(modelUrl) {
+        const container = document.getElementById('model-viewer-container');
+        if (!container) {
+            console.error("3D Viewer container not found.");
+            return;
+        }
+
+        if (animationLoopId) cancelAnimationFrame(animationLoopId);
+        
+        container.style.display = 'block';
+        container.innerHTML = '';
+
+        // --- Scene Setup ---
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf3f3f3);
+        scene.fog = new THREE.Fog(0xf3f3f3, 50, 200);
+
+        // --- Camera Setup ---
+        camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 10000);
+        camera.position.set(12, 12, 20);
+
+        // --- Renderer Setup ---
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        // --- Lights ---
+        const ambient = new THREE.AmbientLight(0xffffff, 0.9);
+        scene.add(ambient);
+
+        // --- THIS IS THE CORRECTED LINE ---
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5); 
+        dirLight.position.set(20, 40, 30);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.set(2048, 2048);
+        scene.add(dirLight);
+
+        // --- Controls ---
+        controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // --- Texture Loader (with Cache Buster) ---
+        const textureLoader = new THREE.TextureLoader();
+        const cacheBuster = `?v=${new Date().getTime()}`; 
+
+        const wallTexture = textureLoader.load(`/static/textures/wall_plaster.jpeg${cacheBuster}`);
+        wallTexture.wrapS = THREE.RepeatWrapping;
+        wallTexture.wrapT = THREE.RepeatWrapping;
+        wallTexture.repeat.set(5, 5); 
+
+        const floorTexture = textureLoader.load(`/static/textures/wood_floor.jpeg${cacheBuster}`);
+        floorTexture.wrapS = THREE.RepeatWrapping;
+        floorTexture.wrapT = THREE.RepeatWrapping;
+        floorTexture.repeat.set(8, 8); 
+        // --- End Texture Loader ---
+
+
+        // --- Load the .OBJ Model ---
+        const loader = new OBJLoader();
+        loader.load(
+            modelUrl,
+            // 'onLoad' callback
+            (model) => { 
+                
+                // Apply the WALL texture
+                const wallMaterial = new THREE.MeshStandardMaterial({
+                    map: wallTexture, // Applies plaster texture
+                    roughness: 0.8,
+                    metalness: 0.1,
+                    side: THREE.DoubleSide
+                });
+    
+                model.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        child.material = wallMaterial; // Apply to walls
+                    }
+                });
+                
+                // --- Center and scale model ---
+                const box = new THREE.Box3().setFromObject(model);
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const scale = 10 / maxDim; 
+                model.scale.set(scale, scale, scale);
+
+                const scaledBox = new THREE.Box3().setFromObject(model);
+                const scaledSize = scaledBox.getSize(new THREE.Vector3());
+                const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+
+                model.position.set(
+                    -scaledCenter.x,
+                    -scaledBox.min.y, 
+                    -scaledCenter.z
+                );
+                scene.add(model);
+    
+                // --- ADD FLOOR PLANE ---
+                const floorGeo = new THREE.PlaneGeometry(scaledSize.x * 1.5, scaledSize.z * 1.5);
+                
+                // Apply the WOOD texture
+                const floorMat = new THREE.MeshStandardMaterial({
+                    map: floorTexture, 
+                    roughness: 0.9,
+                    metalness: 0.0
+                });
+                const floor = new THREE.Mesh(floorGeo, floorMat);
+
+                // --- FIX FOR VERTICAL FLOOR ---
+                // This line rotates the plane to make it lie flat
+                floor.rotation.x = -Math.PI / 2; 
+                
+                floor.position.y = -0.01; 
+                floor.receiveShadow = true;
+                scene.add(floor); // Add the floor to the scene
+                // --- END OF ADD FLOOR PLANE ---
+
+                // Adjust camera and controls to fit
+                camera.position.set(scaledSize.x * 1.2, scaledSize.y * 1.5, scaledSize.z * 1.2); 
+                controls.target.set(0, scaledSize.y / 2, 0); 
+                controls.update();
+                
+                animate();
+            },
+            // 'onProgress' callback
+            (xhr) => console.log((xhr.loaded / xhr.total * 100).toFixed(1) + '% loaded'),
+            // 'onError' callback
+            (error) => {
+                console.error("Model loading error:", error);
+                const statusMessage = document.getElementById('statusMessage');
+                if (statusMessage) {
+                    statusMessage.textContent = "❌ Failed to load the 3D model file.";
+                    statusMessage.className = "status-message";
+                    statusMessage.id = "status-error";
+                }
+                const viewerContainer = document.getElementById('model-viewer-container');
+                if (viewerContainer) viewerContainer.style.display = 'none';
+            }
+        );
+    }
+
+    /**
+     * The animation loop that renders the scene
+     */
+    function animate() {
+        animationLoopId = requestAnimationFrame(animate);
+        controls.update(); // Update orbit controls
+        renderer.render(scene, camera);
+    }
+
+    /**
+     * Handle browser window resizing
+     */
+    window.addEventListener('resize', () => {
+        if (camera && renderer) {
+            const container = document.getElementById('model-viewer-container');
+            if (container) { // Safety check
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            }
+        }
+    });
+
+    // (I removed the duplicate fileUpload listener that was here)
+
+</script>
+
+</body>
+</html>
